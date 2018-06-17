@@ -1,7 +1,7 @@
 use gfx;
+use gfx_device_gl;
 use gfx_window_glutin;
 use glutin;
-use gfx_device_gl;
 
 use graphics::formats;
 

@@ -35,10 +35,10 @@ mod buffer_alloc {
 }
 
 pub mod quad {
-    use gfx;
-    use super::formats;
-    use super::consts;
     use super::buffer_alloc;
+    use super::consts;
+    use super::formats;
+    use gfx;
     const MAX_NUM_QUADS: usize = 1024;
     gfx_vertex_struct!(QuadCorners {
         corner_zero_to_one: [f32; 2] = "a_CornerZeroToOne",

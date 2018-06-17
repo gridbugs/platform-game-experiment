@@ -1,3 +1,4 @@
+#![feature(nonzero)]
 extern crate cgmath;
 extern crate fnv;
 #[macro_use]
@@ -6,15 +7,18 @@ extern crate gfx_device_gl;
 extern crate gfx_window_glutin;
 extern crate glutin;
 
+mod aabb;
 mod game;
 mod glutin_window;
 mod graphics;
+mod loose_quad_tree;
 
+use cgmath::vec2;
 use game::GameState;
 use gfx::Device;
 use glutin::GlContext;
-use graphics::quad::Renderer;
 use glutin_window::GlutinWindow;
+use graphics::quad::Renderer;
 
 enum ExternalEvent {
     Quit,
@@ -37,6 +41,8 @@ fn process_input(events_loop: &mut glutin::EventsLoop) -> Option<ExternalEvent> 
 }
 
 fn main() {
+    let width = 960;
+    let height = 640;
     let GlutinWindow {
         window,
         mut device,
@@ -45,12 +51,13 @@ fn main() {
         mut events_loop,
         mut encoder,
         ..
-    } = GlutinWindow::new(960, 640);
+    } = GlutinWindow::new(width, height);
 
     let mut renderer =
         Renderer::new(render_target_view.clone(), &mut factory, &mut encoder);
 
-    let mut game_state = GameState::demo();
+    let mut game_state = GameState::new(vec2(width as f32, height as f32));
+    game_state.init_demo();
 
     loop {
         encoder.clear(&render_target_view, [0.0, 0.0, 0.0, 1.0]);
