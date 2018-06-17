@@ -1,5 +1,5 @@
 use aabb::Aabb;
-use cgmath::{vec2, Vector2};
+use cgmath::{Vector2, vec2};
 use fnv::FnvHashMap;
 use graphics;
 use loose_quad_tree::LooseQuadTree;
@@ -22,6 +22,10 @@ impl EntityCommon {
     }
     fn aabb(&self) -> Aabb {
         Aabb::new(self.position, self.size)
+    }
+    fn movement_aabb(&self, new_position: Vector2<f32>) -> Aabb {
+        let new_aabb = Aabb::new(new_position, self.size);
+        Aabb::union(&self.aabb(), &new_aabb)
     }
 }
 
@@ -92,13 +96,14 @@ impl GameState {
         id
     }
     pub fn init_demo(&mut self) {
+        self.clear();
         let player_id = self.add_common(EntityCommon::new(
-            vec2(100., 100.),
+            vec2(0., 0.),
             vec2(32., 64.),
             [1., 0., 0.],
         ));
         self.player_id = Some(player_id);
-        self.velocity.insert(player_id, vec2(1., 2.));
+        self.velocity.insert(player_id, vec2(3., 7.));
         self.add_static_solid(EntityCommon::new(
             vec2(50., 200.),
             vec2(400., 20.),
@@ -120,46 +125,18 @@ impl GameState {
             [1., 1., 0.],
         ));
     }
-    /*
-    pub fn demo() -> Self {
-        let mut entity_id_allocator = EntityIdAllocator::default();
-        let mut common: FnvHashMap<EntityId, EntityCommon> = Default::default();
-        let mut velocity: FnvHashMap<EntityId, Vector2<f32>> = Default::default();
-
-        let player_id = {
-            use cgmath::vec2;
-            let mut add_common = |position, size, colour| {
-                let id = entity_id_allocator.allocate();
-                common.insert(
-                    id,
-                    EntityCommon {
-                        position,
-                        size,
-                        colour,
-                    },
-                );
-                id
-            };
-            let player_id = add_common(vec2(100., 100.), vec2(32., 64.), [1., 0., 0.]);
-            velocity.insert(player_id, vec2(1., 2.));
-            add_common(vec2(50., 200.), vec2(400., 20.), [1., 1., 0.]);
-            add_common(vec2(150., 250.), vec2(500., 20.), [1., 1., 0.]);
-            add_common(vec2(50., 450.), vec2(100., 20.), [1., 1., 0.]);
-            add_common(vec2(50., 500.), vec2(800., 20.), [1., 1., 0.]);
-            player_id
-        };
-
-        Self {
-            player_id,
-            entity_id_allocator,
-            common,
-            velocity,
-        }
-    }*/
     pub fn update(&mut self) {
         for (id, velocity) in self.velocity.iter() {
             if let Some(common) = self.common.get_mut(id) {
-                common.position += *velocity;
+                let new_position = common.position + *velocity;
+                let movement_aabb = common.movement_aabb(new_position);
+                if self.static_aabb_quad_tree
+                    .count_intersections(&movement_aabb) > 0
+                {
+                    // do nothing (yet)
+                } else {
+                    common.position = new_position;
+                }
             }
         }
     }

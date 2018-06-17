@@ -1,5 +1,5 @@
 use aabb::*;
-use cgmath::{vec2, Vector2};
+use cgmath::{Vector2, vec2};
 use std::num::NonZeroUsize;
 
 #[derive(Debug, Clone)]
@@ -124,10 +124,7 @@ impl<T> LooseQuadTree<T> {
                     bottom_left,
                     bottom_right,
                 } = current_node_aabb.split_four();
-                if top_left
-                    .double_about_centre()
-                    .is_intersecting(aabb_to_test)
-                {
+                if top_left.double_about_centre().is_intersecting(aabb_to_test) {
                     Self::for_each_intersection_rec(
                         nodes,
                         child_offset + Self::TOP_LEFT,
@@ -179,5 +176,20 @@ impl<T> LooseQuadTree<T> {
     pub fn for_each_intersection<F: FnMut(&Aabb, &T)>(&self, aabb: &Aabb, mut f: F) {
         let root_aabb = Aabb::new(vec2(0., 0.), self.size);
         Self::for_each_intersection_rec(&self.nodes, 0, &root_aabb, aabb, &mut f);
+    }
+    pub fn fold_intersections<A, F: FnMut(&mut A, &Aabb, &T)>(
+        &self,
+        aabb: &Aabb,
+        init: A,
+        mut f: F,
+    ) -> A {
+        let mut acc = init;
+        self.for_each_intersection(aabb, |aabb, t| {
+            f(&mut acc, aabb, t);
+        });
+        acc
+    }
+    pub fn count_intersections(&self, aabb: &Aabb) -> usize {
+        self.fold_intersections(aabb, 0, |count, _aabb, _t| *count += 1)
     }
 }

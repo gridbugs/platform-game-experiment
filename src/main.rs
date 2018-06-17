@@ -22,6 +22,7 @@ use graphics::quad::Renderer;
 
 enum ExternalEvent {
     Quit,
+    Reset,
 }
 
 fn process_input(events_loop: &mut glutin::EventsLoop) -> Option<ExternalEvent> {
@@ -31,6 +32,19 @@ fn process_input(events_loop: &mut glutin::EventsLoop) -> Option<ExternalEvent> 
         glutin::Event::WindowEvent { event, .. } => match event {
             glutin::WindowEvent::CloseRequested => {
                 external_event = Some(ExternalEvent::Quit);
+            }
+            glutin::WindowEvent::KeyboardInput { input, .. } => {
+                if let Some(virtual_keycode) = input.virtual_keycode {
+                    match input.state {
+                        glutin::ElementState::Pressed => match virtual_keycode {
+                            glutin::VirtualKeyCode::Return => {
+                                external_event = Some(ExternalEvent::Reset)
+                            }
+                            _ => (),
+                        },
+                        _ => (),
+                    }
+                }
             }
             _ => (),
         },
@@ -63,6 +77,7 @@ fn main() {
         encoder.clear(&render_target_view, [0.0, 0.0, 0.0, 1.0]);
         match process_input(&mut events_loop) {
             Some(ExternalEvent::Quit) => break,
+            Some(ExternalEvent::Reset) => game_state.init_demo(),
             None => (),
         }
         game_state.update();
