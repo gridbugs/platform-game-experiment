@@ -177,19 +177,9 @@ impl<T> LooseQuadTree<T> {
         let root_aabb = Aabb::new(vec2(0., 0.), self.size);
         Self::for_each_intersection_rec(&self.nodes, 0, &root_aabb, aabb, &mut f);
     }
-    pub fn fold_intersections<A, F: FnMut(&mut A, &Aabb, &T)>(
-        &self,
-        aabb: &Aabb,
-        init: A,
-        mut f: F,
-    ) -> A {
-        let mut acc = init;
-        self.for_each_intersection(aabb, |aabb, t| {
-            f(&mut acc, aabb, t);
-        });
-        acc
-    }
     pub fn count_intersections(&self, aabb: &Aabb) -> usize {
-        self.fold_intersections(aabb, 0, |count, _aabb, _t| *count += 1)
+        let mut count = 0;
+        self.for_each_intersection(aabb, |_aabb, _t| count += 1);
+        count
     }
 }

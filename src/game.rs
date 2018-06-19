@@ -3,29 +3,29 @@ use cgmath::{Vector2, vec2};
 use fnv::FnvHashMap;
 use graphics;
 use loose_quad_tree::LooseQuadTree;
+use shape::AxisAlignedRect;
 
 pub type EntityId = u32;
 
 pub struct EntityCommon {
-    position: Vector2<f32>,
-    size: Vector2<f32>,
+    top_left: Vector2<f32>,
+    shape: AxisAlignedRect,
     colour: [f32; 3],
 }
 
 impl EntityCommon {
-    fn new(position: Vector2<f32>, size: Vector2<f32>, colour: [f32; 3]) -> Self {
+    fn new(top_left: Vector2<f32>, size: Vector2<f32>, colour: [f32; 3]) -> Self {
         Self {
-            position,
-            size,
+            top_left,
+            shape: AxisAlignedRect::new(size),
             colour,
         }
     }
     fn aabb(&self) -> Aabb {
-        Aabb::new(self.position, self.size)
+        self.shape.aabb(self.top_left)
     }
-    fn movement_aabb(&self, new_position: Vector2<f32>) -> Aabb {
-        let new_aabb = Aabb::new(new_position, self.size);
-        Aabb::union(&self.aabb(), &new_aabb)
+    fn movement_aabb(&self, new_top_left: Vector2<f32>) -> Aabb {
+        Aabb::union(&self.aabb(), &self.shape.aabb(new_top_left))
     }
 }
 
@@ -33,10 +33,10 @@ pub type RendererUpdate = EntityCommon;
 
 impl<'a> graphics::quad::Update for &'a RendererUpdate {
     fn size(&self) -> [f32; 2] {
-        self.size.into()
+        self.shape.dimensions().into()
     }
     fn position(&self) -> [f32; 2] {
-        self.position.into()
+        self.top_left.into()
     }
     fn colour(&self) -> [f32; 3] {
         self.colour
@@ -128,14 +128,14 @@ impl GameState {
     pub fn update(&mut self) {
         for (id, velocity) in self.velocity.iter() {
             if let Some(common) = self.common.get_mut(id) {
-                let new_position = common.position + *velocity;
-                let movement_aabb = common.movement_aabb(new_position);
+                let new_top_left = common.top_left + *velocity;
+                let movement_aabb = common.movement_aabb(new_top_left);
                 if self.static_aabb_quad_tree
                     .count_intersections(&movement_aabb) > 0
                 {
                     // do nothing (yet)
                 } else {
-                    common.position = new_position;
+                    common.top_left = new_top_left;
                 }
             }
         }

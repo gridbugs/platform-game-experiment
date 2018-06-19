@@ -11,7 +11,9 @@ mod aabb;
 mod game;
 mod glutin_window;
 mod graphics;
+mod line_segment;
 mod loose_quad_tree;
+mod shape;
 
 use cgmath::vec2;
 use game::GameState;
