@@ -1,4 +1,5 @@
 #![feature(nonzero)]
+extern crate best;
 extern crate cgmath;
 extern crate fnv;
 #[macro_use]

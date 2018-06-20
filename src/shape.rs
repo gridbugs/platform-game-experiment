@@ -1,7 +1,9 @@
+use best::BestSetNonEmpty;
 use cgmath::{Vector2, vec2};
 use line_segment::LineSegment;
 use aabb::Aabb;
 
+#[derive(Debug, Clone)]
 pub struct AxisAlignedRect {
     dimensions: Vector2<f32>,
 }
@@ -84,5 +86,56 @@ impl AxisAlignedRect {
         } else if direction.x < 0. {
             f(self.left())
         }
+    }
+    fn half_movement_vector_scale_after_collision(
+        &self,
+        position: Vector2<f32>,
+        other: &Self,
+        other_position: Vector2<f32>,
+        movement_vector: Vector2<f32>,
+        reverse_movement_vector: Vector2<f32>,
+        scale: &mut BestSetNonEmpty<f32>,
+    ) {
+        self.for_each_vertex_facing(movement_vector, |rel_vertex| {
+            let abs_vertex = rel_vertex + position;
+            let vertex_movement =
+                LineSegment::new(abs_vertex, abs_vertex + movement_vector);
+            other.for_each_edge_facing(reverse_movement_vector, |rel_edge| {
+                let abs_edge = rel_edge.add_vector(other_position);
+                let intersection = vertex_movement.asymetric_intersection(&abs_edge);
+                if let Some(current_scale) = intersection.intersection_vector_multiplier()
+                {
+                    scale.insert_le(current_scale);
+                }
+            });
+        });
+    }
+
+    pub fn movement_vector_scale_after_collision(
+        &self,
+        position: Vector2<f32>,
+        other: &Self,
+        other_position: Vector2<f32>,
+        movement_vector: Vector2<f32>,
+    ) -> f32 {
+        let mut scale = BestSetNonEmpty::new(1.);
+        let reverse_movement_vector = -movement_vector;
+        self.half_movement_vector_scale_after_collision(
+            position,
+            other,
+            other_position,
+            movement_vector,
+            reverse_movement_vector,
+            &mut scale,
+        );
+        other.half_movement_vector_scale_after_collision(
+            other_position,
+            self,
+            position,
+            reverse_movement_vector,
+            movement_vector,
+            &mut scale,
+        );
+        scale.into_value()
     }
 }

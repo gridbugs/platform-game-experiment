@@ -1,4 +1,5 @@
 use aabb::Aabb;
+use best::BestSetNonEmpty;
 use cgmath::{Vector2, vec2};
 use fnv::FnvHashMap;
 use graphics;
@@ -64,7 +65,7 @@ pub struct GameState {
     entity_id_allocator: EntityIdAllocator,
     common: FnvHashMap<EntityId, EntityCommon>,
     velocity: FnvHashMap<EntityId, Vector2<f32>>,
-    static_aabb_quad_tree: LooseQuadTree<()>,
+    static_aabb_quad_tree: LooseQuadTree<(Vector2<f32>, AxisAlignedRect)>,
 }
 
 impl GameState {
@@ -86,7 +87,8 @@ impl GameState {
     }
     fn add_static_solid(&mut self, common: EntityCommon) -> EntityId {
         let id = self.entity_id_allocator.allocate();
-        self.static_aabb_quad_tree.insert(common.aabb(), ());
+        self.static_aabb_quad_tree
+            .insert(common.aabb(), (common.top_left, common.shape.clone()));
         self.common.insert(id, common);
         id
     }
@@ -128,15 +130,25 @@ impl GameState {
     pub fn update(&mut self) {
         for (id, velocity) in self.velocity.iter() {
             if let Some(common) = self.common.get_mut(id) {
-                let new_top_left = common.top_left + *velocity;
+                let movement = *velocity;
+                let new_top_left = common.top_left + movement;
                 let movement_aabb = common.movement_aabb(new_top_left);
-                if self.static_aabb_quad_tree
-                    .count_intersections(&movement_aabb) > 0
-                {
-                    // do nothing (yet)
-                } else {
-                    common.top_left = new_top_left;
-                }
+                let mut movement_scale = BestSetNonEmpty::new(1.);
+                self.static_aabb_quad_tree.for_each_intersection(
+                    &movement_aabb,
+                    |_solid_aabb, (solid_position, solid_shape)| {
+                        let current_movement_scale =
+                            common.shape.movement_vector_scale_after_collision(
+                                common.top_left,
+                                solid_shape,
+                                *solid_position,
+                                movement,
+                            );
+                        movement_scale.insert_lt(current_movement_scale);
+                    },
+                );
+                let movement_scale = movement_scale.into_value();
+                common.top_left += movement * movement_scale;
             }
         }
     }
