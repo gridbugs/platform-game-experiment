@@ -1,10 +1,10 @@
 use aabb::Aabb;
-use best::BestSetNonEmpty;
-use cgmath::{Vector2, vec2};
+use best::BestMap;
+use cgmath::{vec2, InnerSpace, Vector2};
 use fnv::FnvHashMap;
 use graphics;
 use loose_quad_tree::LooseQuadTree;
-use shape::AxisAlignedRect;
+use shape::{AxisAlignedRect, CollisionInfo};
 
 fn clamp(value: f32, min: f32, max: f32) -> f32 {
     value.max(min).min(max)
@@ -47,6 +47,14 @@ impl InputModel {
     fn vertical(&self) -> f32 {
         self.down - self.up
     }
+    fn movement(&self) -> Vector2<f32> {
+        let raw = vec2(self.horizontal(), self.vertical());
+        if raw.magnitude2() > 1. {
+            raw.normalize()
+        } else {
+            raw
+        }
+    }
 }
 
 pub type EntityId = u32;
@@ -67,9 +75,6 @@ impl EntityCommon {
     }
     fn aabb(&self) -> Aabb {
         self.shape.aabb(self.top_left)
-    }
-    fn movement_aabb(&self, new_top_left: Vector2<f32>) -> Aabb {
-        Aabb::union(&self.aabb(), &self.shape.aabb(new_top_left))
     }
 }
 
@@ -116,9 +121,83 @@ fn update_player_velocity(
     input_model: &InputModel,
 ) -> Vector2<f32> {
     const MULTIPLIER: f32 = 4.;
-    let x = input_model.horizontal() * MULTIPLIER;
-    let y = input_model.vertical() * MULTIPLIER;
-    vec2(x, y)
+    input_model.movement() * MULTIPLIER
+}
+
+enum EntityMovementStep {
+    MoveWithoutCollision,
+    MoveWithCollision(CollisionInfo),
+}
+
+fn entity_movement_step(
+    top_left: Vector2<f32>,
+    shape: &AxisAlignedRect,
+    movement: Vector2<f32>,
+    static_aabb_quad_tree: &LooseQuadTree<(Vector2<f32>, AxisAlignedRect)>,
+) -> EntityMovementStep {
+    let new_top_left = top_left + movement;
+    let movement_aabb = shape.aabb(top_left).union(&shape.aabb(new_top_left));
+    let mut collision = BestMap::new();
+    static_aabb_quad_tree.for_each_intersection(
+        &movement_aabb,
+        |_solid_aabb, (solid_position, solid_shape)| {
+            let collision_info = shape.movement_collision_test(
+                top_left,
+                solid_shape,
+                *solid_position,
+                movement,
+            );
+            if let Some(CollisionInfo {
+                movement_vector_ratio,
+                colliding_with,
+            }) = collision_info
+            {
+                collision.insert_lt(movement_vector_ratio, colliding_with);
+            }
+        },
+    );
+    match collision.into_key_and_value() {
+        None => EntityMovementStep::MoveWithoutCollision,
+        Some((movement_vector_ratio, colliding_with)) => {
+            EntityMovementStep::MoveWithCollision(CollisionInfo {
+                movement_vector_ratio,
+                colliding_with,
+            })
+        }
+    }
+}
+
+fn top_left_after_movement(
+    common: &EntityCommon,
+    mut movement: Vector2<f32>,
+    static_aabb_quad_tree: &LooseQuadTree<(Vector2<f32>, AxisAlignedRect)>,
+) -> Vector2<f32> {
+    const EPSILON: f32 = 0.0001;
+    const MAX_ITERATIONS: usize = 16;
+    let mut top_left = common.top_left;
+    let shape = &common.shape;
+    for _ in 0..MAX_ITERATIONS {
+        match entity_movement_step(top_left, shape, movement, static_aabb_quad_tree) {
+            EntityMovementStep::MoveWithoutCollision => return top_left + movement,
+            EntityMovementStep::MoveWithCollision(CollisionInfo {
+                movement_vector_ratio,
+                colliding_with,
+            }) => {
+                top_left = top_left + movement * movement_vector_ratio;
+                let remaining_ratio = 1. - movement_vector_ratio;
+                if remaining_ratio < EPSILON {
+                    return top_left;
+                }
+                let remaining_vector = movement * remaining_ratio;
+                let collision_surface_direction = colliding_with.vector().normalize();
+                movement = remaining_vector.project_on(collision_surface_direction);
+                if movement.magnitude2() < EPSILON {
+                    return top_left;
+                }
+            }
+        }
+    }
+    top_left
 }
 
 impl GameState {
@@ -192,25 +271,12 @@ impl GameState {
         }
         for (id, velocity) in self.velocity.iter() {
             if let Some(common) = self.common.get_mut(id) {
-                let movement = *velocity;
-                let new_top_left = common.top_left + movement;
-                let movement_aabb = common.movement_aabb(new_top_left);
-                let mut movement_scale = BestSetNonEmpty::new(1.);
-                self.static_aabb_quad_tree.for_each_intersection(
-                    &movement_aabb,
-                    |_solid_aabb, (solid_position, solid_shape)| {
-                        let current_movement_scale =
-                            common.shape.movement_vector_scale_after_collision(
-                                common.top_left,
-                                solid_shape,
-                                *solid_position,
-                                movement,
-                            );
-                        movement_scale.insert_lt(current_movement_scale);
-                    },
+                let new_top_left = top_left_after_movement(
+                    common,
+                    *velocity,
+                    &self.static_aabb_quad_tree,
                 );
-                let movement_scale = movement_scale.into_value();
-                common.top_left += movement * movement_scale;
+                common.top_left = new_top_left;
             }
         }
     }

@@ -1,4 +1,4 @@
-use cgmath::{Vector2, vec2};
+use cgmath::{vec2, Vector2};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb {
@@ -28,7 +28,7 @@ impl Aabb {
     fn bottom_right_coord(&self) -> Vector2<f32> {
         self.top_left + self.size
     }
-    pub fn union(a: &Aabb, b: &Aabb) -> Self {
+    pub fn from_union(a: &Aabb, b: &Aabb) -> Self {
         let top_left = vec2(
             a.top_left.x.min(b.top_left.x),
             a.top_left.y.min(b.top_left.y),
@@ -41,6 +41,9 @@ impl Aabb {
         );
         let size = bottom_right_coord - top_left;
         Self::new(top_left, size)
+    }
+    pub fn union(&self, other: &Self) -> Self {
+        Self::from_union(self, other)
     }
     pub fn size(&self) -> Vector2<f32> {
         self.size

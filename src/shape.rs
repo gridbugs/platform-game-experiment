@@ -1,7 +1,12 @@
-use best::BestSetNonEmpty;
-use cgmath::{Vector2, vec2};
-use line_segment::LineSegment;
 use aabb::Aabb;
+use best::BestMap;
+use cgmath::{vec2, Vector2};
+use line_segment::LineSegment;
+
+pub struct CollisionInfo {
+    pub movement_vector_ratio: f32,
+    pub colliding_with: LineSegment,
+}
 
 #[derive(Debug, Clone)]
 pub struct AxisAlignedRect {
@@ -94,7 +99,7 @@ impl AxisAlignedRect {
         other_position: Vector2<f32>,
         movement_vector: Vector2<f32>,
         reverse_movement_vector: Vector2<f32>,
-        scale: &mut BestSetNonEmpty<f32>,
+        collision: &mut BestMap<f32, LineSegment>,
     ) {
         self.for_each_vertex_facing(movement_vector, |rel_vertex| {
             let abs_vertex = rel_vertex + position;
@@ -105,37 +110,44 @@ impl AxisAlignedRect {
                 let intersection = vertex_movement.asymetric_intersection(&abs_edge);
                 if let Some(current_scale) = intersection.intersection_vector_multiplier()
                 {
-                    scale.insert_le(current_scale);
+                    collision.insert_le(current_scale, abs_edge);
                 }
             });
         });
     }
 
-    pub fn movement_vector_scale_after_collision(
+    pub fn movement_collision_test(
         &self,
         position: Vector2<f32>,
-        other: &Self,
-        other_position: Vector2<f32>,
+        stationary: &Self,
+        stationary_position: Vector2<f32>,
         movement_vector: Vector2<f32>,
-    ) -> f32 {
-        let mut scale = BestSetNonEmpty::new(1.);
+    ) -> Option<CollisionInfo> {
+        let mut collision = BestMap::new();
         let reverse_movement_vector = -movement_vector;
         self.half_movement_vector_scale_after_collision(
             position,
-            other,
-            other_position,
+            stationary,
+            stationary_position,
             movement_vector,
             reverse_movement_vector,
-            &mut scale,
+            &mut collision,
         );
-        other.half_movement_vector_scale_after_collision(
-            other_position,
+        stationary.half_movement_vector_scale_after_collision(
+            stationary_position,
             self,
             position,
             reverse_movement_vector,
             movement_vector,
-            &mut scale,
+            &mut collision,
         );
-        scale.into_value()
+        collision
+            .into_key_and_value()
+            .map(
+                |(movement_vector_ratio, colliding_with)| CollisionInfo {
+                    movement_vector_ratio,
+                    colliding_with,
+                },
+            )
     }
 }
