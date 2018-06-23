@@ -6,6 +6,49 @@ use graphics;
 use loose_quad_tree::LooseQuadTree;
 use shape::AxisAlignedRect;
 
+fn clamp(value: f32, min: f32, max: f32) -> f32 {
+    value.max(min).min(max)
+}
+
+pub struct InputModel {
+    left: f32,
+    right: f32,
+    up: f32,
+    down: f32,
+}
+
+impl Default for InputModel {
+    fn default() -> Self {
+        Self {
+            left: 0.,
+            right: 0.,
+            up: 0.,
+            down: 0.,
+        }
+    }
+}
+
+impl InputModel {
+    pub fn set_left(&mut self, value: f32) {
+        self.left = clamp(value, 0., 1.);
+    }
+    pub fn set_right(&mut self, value: f32) {
+        self.right = clamp(value, 0., 1.);
+    }
+    pub fn set_up(&mut self, value: f32) {
+        self.up = clamp(value, 0., 1.);
+    }
+    pub fn set_down(&mut self, value: f32) {
+        self.down = clamp(value, 0., 1.);
+    }
+    fn horizontal(&self) -> f32 {
+        self.right - self.left
+    }
+    fn vertical(&self) -> f32 {
+        self.down - self.up
+    }
+}
+
 pub type EntityId = u32;
 
 pub struct EntityCommon {
@@ -68,6 +111,16 @@ pub struct GameState {
     static_aabb_quad_tree: LooseQuadTree<(Vector2<f32>, AxisAlignedRect)>,
 }
 
+fn update_player_velocity(
+    _current_velocity: Vector2<f32>,
+    input_model: &InputModel,
+) -> Vector2<f32> {
+    const MULTIPLIER: f32 = 4.;
+    let x = input_model.horizontal() * MULTIPLIER;
+    let y = input_model.vertical() * MULTIPLIER;
+    vec2(x, y)
+}
+
 impl GameState {
     pub fn new(size_hint: Vector2<f32>) -> Self {
         Self {
@@ -100,12 +153,12 @@ impl GameState {
     pub fn init_demo(&mut self) {
         self.clear();
         let player_id = self.add_common(EntityCommon::new(
-            vec2(0., 0.),
+            vec2(700., 150.),
             vec2(32., 64.),
             [1., 0., 0.],
         ));
         self.player_id = Some(player_id);
-        self.velocity.insert(player_id, vec2(3., 7.));
+        self.velocity.insert(player_id, vec2(0., 0.));
         self.add_static_solid(EntityCommon::new(
             vec2(50., 200.),
             vec2(400., 20.),
@@ -126,8 +179,17 @@ impl GameState {
             vec2(800., 20.),
             [1., 1., 0.],
         ));
+        self.add_static_solid(EntityCommon::new(
+            vec2(600., 100.),
+            vec2(20., 200.),
+            [1., 1., 0.],
+        ));
     }
-    pub fn update(&mut self) {
+    pub fn update(&mut self, input_model: &InputModel) {
+        let player_id = self.player_id.expect("No player id");
+        if let Some(velocity) = self.velocity.get_mut(&player_id) {
+            *velocity = update_player_velocity(*velocity, input_model);
+        }
         for (id, velocity) in self.velocity.iter() {
             if let Some(common) = self.common.get_mut(id) {
                 let movement = *velocity;

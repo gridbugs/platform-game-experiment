@@ -17,7 +17,7 @@ mod loose_quad_tree;
 mod shape;
 
 use cgmath::vec2;
-use game::GameState;
+use game::{GameState, InputModel};
 use gfx::Device;
 use glutin::GlContext;
 use glutin_window::GlutinWindow;
@@ -28,7 +28,10 @@ enum ExternalEvent {
     Reset,
 }
 
-fn process_input(events_loop: &mut glutin::EventsLoop) -> Option<ExternalEvent> {
+fn process_input(
+    events_loop: &mut glutin::EventsLoop,
+    input_model: &mut InputModel,
+) -> Option<ExternalEvent> {
     let mut external_event = None;
 
     events_loop.poll_events(|event| match event {
@@ -43,9 +46,19 @@ fn process_input(events_loop: &mut glutin::EventsLoop) -> Option<ExternalEvent> 
                             glutin::VirtualKeyCode::Return => {
                                 external_event = Some(ExternalEvent::Reset)
                             }
+                            glutin::VirtualKeyCode::Left => input_model.set_left(1.),
+                            glutin::VirtualKeyCode::Right => input_model.set_right(1.),
+                            glutin::VirtualKeyCode::Up => input_model.set_up(1.),
+                            glutin::VirtualKeyCode::Down => input_model.set_down(1.),
                             _ => (),
                         },
-                        _ => (),
+                        glutin::ElementState::Released => match virtual_keycode {
+                            glutin::VirtualKeyCode::Left => input_model.set_left(0.),
+                            glutin::VirtualKeyCode::Right => input_model.set_right(0.),
+                            glutin::VirtualKeyCode::Up => input_model.set_up(0.),
+                            glutin::VirtualKeyCode::Down => input_model.set_down(0.),
+                            _ => (),
+                        },
                     }
                 }
             }
@@ -76,14 +89,16 @@ fn main() {
     let mut game_state = GameState::new(vec2(width as f32, height as f32));
     game_state.init_demo();
 
+    let mut input_model = InputModel::default();
+
     loop {
         encoder.clear(&render_target_view, [0.0, 0.0, 0.0, 1.0]);
-        match process_input(&mut events_loop) {
+        match process_input(&mut events_loop, &mut input_model) {
             Some(ExternalEvent::Quit) => break,
             Some(ExternalEvent::Reset) => game_state.init_demo(),
             None => (),
         }
-        game_state.update();
+        game_state.update(&input_model);
         renderer.update(game_state.renderer_updates(), &mut factory);
         renderer.encode(&mut encoder);
         encoder.flush(&mut device);

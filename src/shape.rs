@@ -66,7 +66,7 @@ impl AxisAlignedRect {
             if direction.x > 0. {
                 f(self.top_right());
                 f(self.bottom_right());
-            } else if direction.y < 0. {
+            } else if direction.x < 0. {
                 f(self.top_left());
                 f(self.bottom_left());
             }
