@@ -1,10 +1,10 @@
 use aabb::Aabb;
 use best::BestMap;
-use cgmath::{vec2, InnerSpace, Vector2};
+use cgmath::{InnerSpace, Vector2, vec2};
 use fnv::FnvHashMap;
 use graphics;
 use loose_quad_tree::LooseQuadTree;
-use shape::{AxisAlignedRect, CollisionInfo};
+use shape::{AxisAlignedRect, CollisionInfo, Shape};
 
 fn clamp(value: f32, min: f32, max: f32) -> f32 {
     value.max(min).min(max)
@@ -61,7 +61,7 @@ pub type EntityId = u32;
 
 pub struct EntityCommon {
     top_left: Vector2<f32>,
-    shape: AxisAlignedRect,
+    shape: Shape,
     colour: [f32; 3],
 }
 
@@ -69,7 +69,7 @@ impl EntityCommon {
     fn new(top_left: Vector2<f32>, size: Vector2<f32>, colour: [f32; 3]) -> Self {
         Self {
             top_left,
-            shape: AxisAlignedRect::new(size),
+            shape: Shape::AxisAlignedRect(AxisAlignedRect::new(size)),
             colour,
         }
     }
@@ -113,7 +113,7 @@ pub struct GameState {
     entity_id_allocator: EntityIdAllocator,
     common: FnvHashMap<EntityId, EntityCommon>,
     velocity: FnvHashMap<EntityId, Vector2<f32>>,
-    static_aabb_quad_tree: LooseQuadTree<(Vector2<f32>, AxisAlignedRect)>,
+    static_aabb_quad_tree: LooseQuadTree<(Vector2<f32>, Shape)>,
 }
 
 fn update_player_velocity(
@@ -131,9 +131,9 @@ enum EntityMovementStep {
 
 fn entity_movement_step(
     top_left: Vector2<f32>,
-    shape: &AxisAlignedRect,
+    shape: &Shape,
     movement: Vector2<f32>,
-    static_aabb_quad_tree: &LooseQuadTree<(Vector2<f32>, AxisAlignedRect)>,
+    static_aabb_quad_tree: &LooseQuadTree<(Vector2<f32>, Shape)>,
 ) -> EntityMovementStep {
     let new_top_left = top_left + movement;
     let movement_aabb = shape.aabb(top_left).union(&shape.aabb(new_top_left));
@@ -170,7 +170,7 @@ fn entity_movement_step(
 fn top_left_after_movement(
     common: &EntityCommon,
     mut movement: Vector2<f32>,
-    static_aabb_quad_tree: &LooseQuadTree<(Vector2<f32>, AxisAlignedRect)>,
+    static_aabb_quad_tree: &LooseQuadTree<(Vector2<f32>, Shape)>,
 ) -> Vector2<f32> {
     const EPSILON: f32 = 0.0001;
     const MAX_ITERATIONS: usize = 16;
