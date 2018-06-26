@@ -38,6 +38,7 @@ pub mod quad {
     use super::buffer_alloc;
     use super::consts;
     use super::formats;
+    use super::InstanceWriter;
     use gfx;
     const MAX_NUM_QUADS: usize = 1024;
     gfx_vertex_struct!(QuadCorners {
@@ -66,12 +67,6 @@ pub mod quad {
         bundle: gfx::Bundle<R, pipe::Data<R>>,
         num_quads: usize,
         instances_upload: gfx::handle::Buffer<R, Instance>,
-    }
-
-    pub trait Update {
-        fn colour(&self) -> [f32; 3];
-        fn size(&self) -> [f32; 2];
-        fn position(&self) -> [f32; 2];
     }
 
     impl<R: gfx::Resources> Renderer<R> {
@@ -128,25 +123,22 @@ pub mod quad {
             }
         }
 
-        pub fn update<U, F, I>(&mut self, updates: I, factory: &mut F)
+        pub fn instance_writer<F>(
+            &mut self,
+            factory: &mut F,
+        ) -> InstanceWriter<R, Instance>
         where
-            U: Update,
             F: gfx::Factory<R> + gfx::traits::FactoryExt<R>,
-            I: IntoIterator<Item = U>,
         {
-            let mut quad_instance_writer = factory
+            let writer = factory
                 .write_mapping(&self.instances_upload)
                 .expect("Failed to map upload buffer");
-            self.num_quads = updates
-                .into_iter()
-                .zip(quad_instance_writer.iter_mut())
-                .fold(0, |count, (update, writer)| {
-                    writer.position_of_top_left_in_pixels = update.position();
-                    writer.dimensions_in_pixels = update.size();
-                    writer.colour = update.colour();
-                    count + 1
-                });
-            self.bundle.slice.instances = Some((self.num_quads as u32, 0));
+            self.num_quads = 0;
+            InstanceWriter {
+                num_instances: &mut self.num_quads,
+                bundle_slice_instances: &mut self.bundle.slice.instances,
+                writer,
+            }
         }
 
         pub fn encode<C>(&self, encoder: &mut gfx::Encoder<R, C>)
@@ -164,5 +156,73 @@ pub mod quad {
                 .expect("Failed to copy instances");
             self.bundle.encode(encoder);
         }
+    }
+}
+
+use gfx;
+
+pub struct InstanceWriter<'a, R: gfx::Resources, T: 'a + Copy> {
+    num_instances: &'a mut usize,
+    bundle_slice_instances: &'a mut Option<(u32, u32)>,
+    writer: gfx::mapping::Writer<'a, R, T>,
+}
+
+pub struct InstanceWriterIterMut<'a, T: 'a> {
+    num_instances: &'a mut usize,
+    iter_mut: ::std::slice::IterMut<'a, T>,
+}
+
+impl<'a, T> Iterator for InstanceWriterIterMut<'a, T> {
+    type Item = &'a mut T;
+    fn next(&mut self) -> Option<Self::Item> {
+        *self.num_instances += 1;
+        self.iter_mut.next()
+    }
+}
+
+impl<'a, R: gfx::Resources, T: Copy> Drop for InstanceWriter<'a, R, T> {
+    fn drop(&mut self) {
+        *self.bundle_slice_instances = Some((*self.num_instances as u32, 0));
+    }
+}
+
+impl<'a, R: gfx::Resources, T: Copy> InstanceWriter<'a, R, T> {
+    pub fn iter_mut(&mut self) -> InstanceWriterIterMut<T> {
+        InstanceWriterIterMut {
+            num_instances: &mut self.num_instances,
+            iter_mut: self.writer.iter_mut(),
+        }
+    }
+}
+
+pub struct Renderer<R: gfx::Resources> {
+    pub quad: quad::Renderer<R>,
+}
+
+impl<R: gfx::Resources> Renderer<R> {
+    pub fn new<F, C>(
+        colour_rtv: gfx::handle::RenderTargetView<R, formats::Colour>,
+        factory: &mut F,
+        encoder: &mut gfx::Encoder<R, C>,
+    ) -> Self
+    where
+        F: gfx::Factory<R> + gfx::traits::FactoryExt<R>,
+        C: gfx::CommandBuffer<R>,
+    {
+        Self {
+            quad: quad::Renderer::new(colour_rtv, factory, encoder),
+        }
+    }
+    pub fn quad_writer<F>(&mut self, factory: &mut F) -> InstanceWriter<R, quad::Instance>
+    where
+        F: gfx::Factory<R> + gfx::traits::FactoryExt<R>,
+    {
+        self.quad.instance_writer(factory)
+    }
+    pub fn encode<C>(&self, encoder: &mut gfx::Encoder<R, C>)
+    where
+        C: gfx::CommandBuffer<R>,
+    {
+        self.quad.encode(encoder)
     }
 }

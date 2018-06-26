@@ -1,6 +1,6 @@
 use aabb::Aabb;
 use best::BestMap;
-use cgmath::{Vector2, vec2};
+use cgmath::{vec2, Vector2};
 use line_segment::LineSegment;
 
 trait Collide {

@@ -21,7 +21,7 @@ use game::{GameState, InputModel};
 use gfx::Device;
 use glutin::GlContext;
 use glutin_window::GlutinWindow;
-use graphics::quad::Renderer;
+use graphics::Renderer;
 
 enum ExternalEvent {
     Quit,
@@ -99,7 +99,17 @@ fn main() {
             None => (),
         }
         game_state.update(&input_model);
-        renderer.update(game_state.renderer_updates(), &mut factory);
+        {
+            let mut quad_writer = renderer.quad_writer(&mut factory);
+            let mut quad_writer_iter = quad_writer.iter_mut();
+            for common in game_state.common_iter() {
+                if let Some(quad) = quad_writer_iter.next() {
+                    quad.position_of_top_left_in_pixels = common.top_left.into();
+                    quad.dimensions_in_pixels = common.shape.dimensions().into();
+                    quad.colour = common.colour;
+                }
+            }
+        }
         renderer.encode(&mut encoder);
         encoder.flush(&mut device);
         window.swap_buffers().expect("Failed to swap buffers");

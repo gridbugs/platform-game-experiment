@@ -1,5 +1,5 @@
 use aabb::*;
-use cgmath::{Vector2, vec2};
+use cgmath::{vec2, Vector2};
 use std::num::NonZeroUsize;
 
 #[derive(Debug, Clone)]
@@ -124,7 +124,10 @@ impl<T> LooseQuadTree<T> {
                     bottom_left,
                     bottom_right,
                 } = current_node_aabb.split_four();
-                if top_left.double_about_centre().is_intersecting(aabb_to_test) {
+                if top_left
+                    .double_about_centre()
+                    .is_intersecting(aabb_to_test)
+                {
                     Self::for_each_intersection_rec(
                         nodes,
                         child_offset + Self::TOP_LEFT,

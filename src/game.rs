@@ -1,8 +1,7 @@
 use aabb::Aabb;
 use best::BestMap;
-use cgmath::{InnerSpace, Vector2, vec2};
+use cgmath::{vec2, InnerSpace, Vector2};
 use fnv::FnvHashMap;
-use graphics;
 use loose_quad_tree::LooseQuadTree;
 use shape::{AxisAlignedRect, CollisionInfo, Shape};
 
@@ -60,9 +59,9 @@ impl InputModel {
 pub type EntityId = u32;
 
 pub struct EntityCommon {
-    top_left: Vector2<f32>,
-    shape: Shape,
-    colour: [f32; 3],
+    pub top_left: Vector2<f32>,
+    pub shape: Shape,
+    pub colour: [f32; 3],
 }
 
 impl EntityCommon {
@@ -75,20 +74,6 @@ impl EntityCommon {
     }
     fn aabb(&self) -> Aabb {
         self.shape.aabb(self.top_left)
-    }
-}
-
-pub type RendererUpdate = EntityCommon;
-
-impl<'a> graphics::quad::Update for &'a RendererUpdate {
-    fn size(&self) -> [f32; 2] {
-        self.shape.dimensions().into()
-    }
-    fn position(&self) -> [f32; 2] {
-        self.top_left.into()
-    }
-    fn colour(&self) -> [f32; 3] {
-        self.colour
     }
 }
 
@@ -280,7 +265,7 @@ impl GameState {
             }
         }
     }
-    pub fn renderer_updates<'a>(&'a self) -> impl Iterator<Item = &'a RendererUpdate> {
+    pub fn common_iter(&self) -> impl Iterator<Item = &EntityCommon> {
         self.common.values()
     }
 }
