@@ -5,7 +5,7 @@ in vec2 i_PositionOfTopLeftInPixels;
 in vec2 i_DimensionsInPixels;
 in vec3 i_Colour;
 
-uniform Properties {
+uniform WindowProperties {
     vec2 u_WindowSizeInPixels;
 };
 

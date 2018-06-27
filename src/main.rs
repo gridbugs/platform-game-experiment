@@ -22,6 +22,7 @@ use gfx::Device;
 use glutin::GlContext;
 use glutin_window::GlutinWindow;
 use graphics::Renderer;
+use shape::Shape;
 
 enum ExternalEvent {
     Quit,
@@ -100,13 +101,20 @@ fn main() {
         }
         game_state.update(&input_model);
         {
-            let mut quad_writer = renderer.quad_writer(&mut factory);
-            let mut quad_writer_iter = quad_writer.iter_mut();
+            let mut frame = renderer.prepare_frame(&mut factory);
+            let mut updater = frame.updater();
             for common in game_state.common_iter() {
-                if let Some(quad) = quad_writer_iter.next() {
-                    quad.position_of_top_left_in_pixels = common.top_left.into();
-                    quad.dimensions_in_pixels = common.shape.dimensions().into();
-                    quad.colour = common.colour;
+                match &common.shape {
+                    &Shape::AxisAlignedRect(ref rect) => updater.axis_aligned_rect(
+                        common.top_left,
+                        rect.dimensions(),
+                        common.colour,
+                    ),
+                    &Shape::LineSegment(ref line_segment) => updater.line_segment(
+                        line_segment.start + common.top_left,
+                        line_segment.end + common.top_left,
+                        common.colour,
+                    ),
                 }
             }
         }

@@ -3,7 +3,7 @@ use best::BestMap;
 use cgmath::{vec2, Vector2};
 use line_segment::LineSegment;
 
-trait Collide {
+pub trait Collide {
     fn aabb(&self, top_left: Vector2<f32>) -> Aabb;
     fn for_each_edge_facing<F: FnMut(LineSegment)>(&self, direction: Vector2<f32>, f: F);
     fn for_each_vertex_facing<F: FnMut(Vector2<f32>)>(
@@ -79,17 +79,14 @@ pub struct CollisionInfo {
 #[derive(Debug, Clone)]
 pub enum Shape {
     AxisAlignedRect(AxisAlignedRect),
+    LineSegment(LineSegment),
 }
 
 impl Shape {
     pub fn aabb(&self, top_left: Vector2<f32>) -> Aabb {
         match self {
             &Shape::AxisAlignedRect(ref rect) => rect.aabb(top_left),
-        }
-    }
-    pub fn dimensions(&self) -> Vector2<f32> {
-        match self {
-            &Shape::AxisAlignedRect(ref rect) => rect.dimensions(),
+            &Shape::LineSegment(ref line_segment) => line_segment.aabb(top_left),
         }
     }
     pub fn movement_collision_test(
@@ -108,7 +105,14 @@ impl Shape {
                         stationary_position,
                         movement_vector,
                     ),
+                &Shape::LineSegment(ref stationary) => moving.movement_collision_test(
+                    position,
+                    stationary,
+                    stationary_position,
+                    movement_vector,
+                ),
             },
+            &Shape::LineSegment(_) => panic!(),
         }
     }
 }

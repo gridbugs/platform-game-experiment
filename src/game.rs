@@ -2,6 +2,7 @@ use aabb::Aabb;
 use best::BestMap;
 use cgmath::{vec2, InnerSpace, Vector2};
 use fnv::FnvHashMap;
+use line_segment::LineSegment;
 use loose_quad_tree::LooseQuadTree;
 use shape::{AxisAlignedRect, CollisionInfo, Shape};
 
@@ -65,10 +66,10 @@ pub struct EntityCommon {
 }
 
 impl EntityCommon {
-    fn new(top_left: Vector2<f32>, size: Vector2<f32>, colour: [f32; 3]) -> Self {
+    fn new(top_left: Vector2<f32>, shape: Shape, colour: [f32; 3]) -> Self {
         Self {
             top_left,
-            shape: Shape::AxisAlignedRect(AxisAlignedRect::new(size)),
+            shape,
             colour,
         }
     }
@@ -217,36 +218,41 @@ impl GameState {
     pub fn init_demo(&mut self) {
         self.clear();
         let player_id = self.add_common(EntityCommon::new(
-            vec2(700., 150.),
-            vec2(32., 64.),
+            vec2(200., 50.),
+            Shape::AxisAlignedRect(AxisAlignedRect::new(vec2(32., 64.))),
             [1., 0., 0.],
         ));
         self.player_id = Some(player_id);
         self.velocity.insert(player_id, vec2(0., 0.));
         self.add_static_solid(EntityCommon::new(
             vec2(50., 200.),
-            vec2(400., 20.),
+            Shape::AxisAlignedRect(AxisAlignedRect::new(vec2(400., 20.))),
             [1., 1., 0.],
         ));
         self.add_static_solid(EntityCommon::new(
             vec2(150., 250.),
-            vec2(500., 20.),
+            Shape::AxisAlignedRect(AxisAlignedRect::new(vec2(500., 20.))),
             [1., 1., 0.],
         ));
         self.add_static_solid(EntityCommon::new(
             vec2(50., 450.),
-            vec2(100., 20.),
+            Shape::AxisAlignedRect(AxisAlignedRect::new(vec2(100., 20.))),
             [1., 1., 0.],
         ));
         self.add_static_solid(EntityCommon::new(
             vec2(50., 500.),
-            vec2(800., 20.),
+            Shape::AxisAlignedRect(AxisAlignedRect::new(vec2(800., 20.))),
             [1., 1., 0.],
         ));
         self.add_static_solid(EntityCommon::new(
             vec2(600., 100.),
-            vec2(20., 200.),
+            Shape::AxisAlignedRect(AxisAlignedRect::new(vec2(20., 200.))),
             [1., 1., 0.],
+        ));
+        self.add_static_solid(EntityCommon::new(
+            vec2(20., 20.),
+            Shape::LineSegment(LineSegment::new(vec2(0., 0.), vec2(50., 100.))),
+            [0., 1., 0.],
         ));
     }
     pub fn update(&mut self, input_model: &InputModel) {
