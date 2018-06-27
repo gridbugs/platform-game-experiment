@@ -110,6 +110,10 @@ mod instance_renderer {
     use super::InstanceWriter;
     use gfx;
     const MAX_NUM_INSTANCES: usize = 1024;
+    pub struct ShaderBytes {
+        pub vertex: &'static [u8],
+        pub fragment: &'static [u8],
+    }
     pub trait PipelineData<R: gfx::Resources>: gfx::pso::PipelineData<R> {
         type Instance: Copy + gfx::traits::Pod;
         type PipeInit: gfx::pso::PipelineInit<
@@ -123,6 +127,7 @@ mod instance_renderer {
         ) -> Self;
         fn new_pipe() -> Self::PipeInit;
         fn instances(&self) -> &gfx::handle::Buffer<R, Self::Instance>;
+        fn shader_bytes() -> ShaderBytes;
     }
     pub struct Renderer<R: gfx::Resources, D: PipelineData<R>> {
         bundle: gfx::Bundle<R, D>,
@@ -139,10 +144,11 @@ mod instance_renderer {
         where
             F: gfx::Factory<R> + gfx::traits::FactoryExt<R>,
         {
+            let shader_bytes = <D as PipelineData<R>>::shader_bytes();
             let pso = factory
                 .create_pipeline_simple(
-                    include_bytes!("shaders/quad/shader.150.vert"),
-                    include_bytes!("shaders/quad/shader.150.frag"),
+                    shader_bytes.vertex,
+                    shader_bytes.fragment,
                     <D as PipelineData<R>>::new_pipe(),
                 )
                 .expect("Failed to create pipeline");
@@ -206,13 +212,10 @@ mod instance_renderer {
 }
 
 pub mod quad {
-    use super::buffer_alloc;
     use super::buffer_types;
     use super::formats;
-    use super::instance_renderer;
-    use super::InstanceWriter;
+    use super::instance_renderer::{self, PipelineData, ShaderBytes};
     use gfx;
-    const MAX_NUM_INSTANCES: usize = 1024;
 
     gfx_vertex_struct!(Instance {
         position_of_top_left_in_pixels: [f32; 2] = "i_PositionOfTopLeftInPixels",
@@ -227,7 +230,7 @@ pub mod quad {
         target: gfx::BlendTarget<formats::Colour> =
             ("Target", gfx::state::ColorMask::all(), gfx::preset::blend::ALPHA),
     });
-    impl<R: gfx::Resources> instance_renderer::PipelineData<R> for pipe::Data<R> {
+    impl<R: gfx::Resources> PipelineData<R> for pipe::Data<R> {
         type Instance = Instance;
         type PipeInit = pipe::Init<'static>;
         fn new_data(
@@ -249,97 +252,22 @@ pub mod quad {
         fn instances(&self) -> &gfx::handle::Buffer<R, Self::Instance> {
             &self.instances
         }
-    }
-
-    pub struct Renderer<R: gfx::Resources> {
-        bundle: gfx::Bundle<R, pipe::Data<R>>,
-        num_quads: usize,
-        instances_upload: gfx::handle::Buffer<R, Instance>,
-    }
-
-    impl<R: gfx::Resources> Renderer<R> {
-        pub fn new<F>(
-            colour_rtv: &gfx::handle::RenderTargetView<R, formats::Colour>,
-            window_properties: &gfx::handle::Buffer<R, buffer_types::WindowProperties>,
-            factory: &mut F,
-        ) -> Self
-        where
-            F: gfx::Factory<R> + gfx::traits::FactoryExt<R>,
-        {
-            let pso = factory
-                .create_pipeline_simple(
-                    include_bytes!("shaders/quad/shader.150.vert"),
-                    include_bytes!("shaders/quad/shader.150.frag"),
-                    pipe::new(),
-                )
-                .expect("Failed to create pipeline");
-
-            let (quad_corners_buf, slice) =
-                buffer_alloc::create_corner_vertex_buffer_with_slice(factory);
-
-            let (instances, instances_upload) =
-                buffer_alloc::create_instance_and_upload_buffers(
-                    MAX_NUM_INSTANCES,
-                    factory,
-                ).expect("Failed to create buffers");
-            let data = pipe::Data {
-                quad_corners: quad_corners_buf,
-                instances,
-                properties: window_properties.clone(),
-                target: colour_rtv.clone(),
-            };
-            let bundle = gfx::pso::bundle::Bundle::new(slice, pso, data);
-
-            Self {
-                bundle,
-                num_quads: 0,
-                instances_upload,
+        fn shader_bytes() -> ShaderBytes {
+            ShaderBytes {
+                vertex: include_bytes!("shaders/quad/shader.150.vert"),
+                fragment: include_bytes!("shaders/quad/shader.150.frag"),
             }
         }
-
-        pub fn instance_writer<F>(
-            &mut self,
-            factory: &mut F,
-        ) -> InstanceWriter<R, Instance>
-        where
-            F: gfx::Factory<R> + gfx::traits::FactoryExt<R>,
-        {
-            let writer = factory
-                .write_mapping(&self.instances_upload)
-                .expect("Failed to map upload buffer");
-            self.num_quads = 0;
-            InstanceWriter {
-                num_instances: &mut self.num_quads,
-                bundle_slice_instances: &mut self.bundle.slice.instances,
-                writer,
-            }
-        }
-
-        pub fn encode<C>(&self, encoder: &mut gfx::Encoder<R, C>)
-        where
-            C: gfx::CommandBuffer<R>,
-        {
-            encoder
-                .copy_buffer(
-                    &self.instances_upload,
-                    &self.bundle.data.instances,
-                    0,
-                    0,
-                    self.num_quads,
-                )
-                .expect("Failed to copy instances");
-            self.bundle.encode(encoder);
-        }
     }
+
+    pub type Renderer<R> = instance_renderer::Renderer<R, pipe::Data<R>>;
 }
 
 pub mod line_segment {
-    use super::buffer_alloc;
     use super::buffer_types;
     use super::formats;
-    use super::InstanceWriter;
+    use super::instance_renderer::{self, PipelineData, ShaderBytes};
     use gfx;
-    const MAX_NUM_INSTANCES: usize = 1024;
 
     gfx_vertex_struct!(Instance {
         start: [f32; 2] = "i_Start",
@@ -355,86 +283,37 @@ pub mod line_segment {
             ("Target", gfx::state::ColorMask::all(), gfx::preset::blend::ALPHA),
     });
 
-    pub struct Renderer<R: gfx::Resources> {
-        bundle: gfx::Bundle<R, pipe::Data<R>>,
-        num_quads: usize,
-        instances_upload: gfx::handle::Buffer<R, Instance>,
-    }
-
-    impl<R: gfx::Resources> Renderer<R> {
-        pub fn new<F>(
-            colour_rtv: &gfx::handle::RenderTargetView<R, formats::Colour>,
-            window_properties: &gfx::handle::Buffer<R, buffer_types::WindowProperties>,
-            factory: &mut F,
-        ) -> Self
-        where
-            F: gfx::Factory<R> + gfx::traits::FactoryExt<R>,
-        {
-            let pso = factory
-                .create_pipeline_simple(
-                    include_bytes!("shaders/line_segment/shader.150.vert"),
-                    include_bytes!("shaders/line_segment/shader.150.frag"),
-                    pipe::new(),
-                )
-                .expect("Failed to create pipeline");
-
-            let (quad_corners_buf, slice) =
-                buffer_alloc::create_corner_vertex_buffer_with_slice(factory);
-
-            let (instances, instances_upload) =
-                buffer_alloc::create_instance_and_upload_buffers(
-                    MAX_NUM_INSTANCES,
-                    factory,
-                ).expect("Failed to create buffers");
-            let data = pipe::Data {
-                quad_corners: quad_corners_buf,
+    impl<R: gfx::Resources> PipelineData<R> for pipe::Data<R> {
+        type Instance = Instance;
+        type PipeInit = pipe::Init<'static>;
+        fn new_data(
+            corners: gfx::handle::Buffer<R, buffer_types::QuadCorners>,
+            instances: gfx::handle::Buffer<R, Self::Instance>,
+            properties: gfx::handle::Buffer<R, buffer_types::WindowProperties>,
+            target: gfx::handle::RenderTargetView<R, formats::Colour>,
+        ) -> Self {
+            pipe::Data {
+                quad_corners: corners,
                 instances,
-                properties: window_properties.clone(),
-                target: colour_rtv.clone(),
-            };
-            let bundle = gfx::pso::bundle::Bundle::new(slice, pso, data);
-
-            Self {
-                bundle,
-                num_quads: 0,
-                instances_upload,
+                properties,
+                target,
             }
         }
-
-        pub fn instance_writer<F>(
-            &mut self,
-            factory: &mut F,
-        ) -> InstanceWriter<R, Instance>
-        where
-            F: gfx::Factory<R> + gfx::traits::FactoryExt<R>,
-        {
-            let writer = factory
-                .write_mapping(&self.instances_upload)
-                .expect("Failed to map upload buffer");
-            self.num_quads = 0;
-            InstanceWriter {
-                num_instances: &mut self.num_quads,
-                bundle_slice_instances: &mut self.bundle.slice.instances,
-                writer,
-            }
+        fn new_pipe() -> Self::PipeInit {
+            pipe::new()
         }
-
-        pub fn encode<C>(&self, encoder: &mut gfx::Encoder<R, C>)
-        where
-            C: gfx::CommandBuffer<R>,
-        {
-            encoder
-                .copy_buffer(
-                    &self.instances_upload,
-                    &self.bundle.data.instances,
-                    0,
-                    0,
-                    self.num_quads,
-                )
-                .expect("Failed to copy instances");
-            self.bundle.encode(encoder);
+        fn instances(&self) -> &gfx::handle::Buffer<R, Self::Instance> {
+            &self.instances
+        }
+        fn shader_bytes() -> ShaderBytes {
+            ShaderBytes {
+                vertex: include_bytes!("shaders/line_segment/shader.150.vert"),
+                fragment: include_bytes!("shaders/line_segment/shader.150.frag"),
+            }
         }
     }
+
+    pub type Renderer<R> = instance_renderer::Renderer<R, pipe::Data<R>>;
 }
 
 use cgmath::Vector2;
