@@ -25,7 +25,7 @@ pub trait Collide {
             let vertex_movement = LineSegment::new(abs_vertex, abs_vertex + movement);
             other_shape.for_each_edge_facing(reverse_movement, |rel_edge| {
                 let abs_edge = rel_edge.add_vector(other_position);
-                let intersection = vertex_movement.asymetric_intersection(&abs_edge);
+                let intersection = vertex_movement.intersection(&abs_edge);
                 if let Some(current_scale) = intersection.intersection_vector_multiplier()
                 {
                     best_collision.insert_le(current_scale, abs_edge);

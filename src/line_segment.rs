@@ -41,7 +41,7 @@ fn vector2_cross_product(v: Vector2<f32>, w: Vector2<f32>) -> f32 {
     v.x * w.y - v.y * w.x
 }
 
-const EPSILON: f32 = 0.00001;
+const EPSILON: f32 = 0.001;
 
 impl LineSegment {
     pub fn new(start: Vector2<f32>, end: Vector2<f32>) -> Self {
@@ -56,7 +56,7 @@ impl LineSegment {
     pub fn vector(&self) -> Vector2<f32> {
         self.end - self.start
     }
-    pub fn asymetric_intersection(&self, other: &LineSegment) -> IntersectionResult {
+    pub fn intersection(&self, other: &LineSegment) -> IntersectionResult {
         // treat self as  p + tr for t in 0..1
         // treat other as q + us for u in 0..1
         // if we define * on vectors v, w to mean v.x * w.y - v.y * w.x
@@ -99,14 +99,14 @@ impl LineSegment {
             }
         }
         let t = vector2_cross_product(p_to_q, s) / rxs;
-        if t < 0. || t > 1. {
+        if t < -EPSILON || t > 1. + EPSILON {
             return IntersectionResult::None(IntersectionNone::NonParallelNonIntersecting);
         }
         let u = vector2_cross_product(p_to_q, r) / rxs;
         if u.abs() < EPSILON || (u - 1.).abs() < EPSILON {
             return IntersectionResult::Slide(IntersectionSlide::Vertex);
         }
-        if u <= 0. || u >= 1. {
+        if u < -EPSILON || u > 1. + EPSILON {
             return IntersectionResult::None(IntersectionNone::NonParallelNonIntersecting);
         }
         IntersectionResult::IntersectionVectorMultiplier(t)
@@ -160,14 +160,14 @@ mod test {
     fn basic_intersection() {
         let a = LineSegment::new(vec2(0., 0.), vec2(1., 1.));
         let b = LineSegment::new(vec2(1., 0.), vec2(0., 1.));
-        expect_multiplier(a.asymetric_intersection(&b), 0.5);
+        expect_multiplier(a.intersection(&b), 0.5);
     }
 
     #[test]
     fn parallel_non_intersecting() {
         let a = LineSegment::new(vec2(0., 0.), vec2(1., 1.));
         let b = LineSegment::new(vec2(1., 0.), vec2(2., 1.));
-        match a.asymetric_intersection(&b) {
+        match a.intersection(&b) {
             IntersectionResult::None(IntersectionNone::ParallelNonColinear) => (),
             other => panic!("{:?}", other),
         }
@@ -177,7 +177,7 @@ mod test {
     fn non_parallel_non_intersecting() {
         let a = LineSegment::new(vec2(0., 0.), vec2(1., 1.));
         let b = LineSegment::new(vec2(2., 0.), vec2(2., 1.));
-        match a.asymetric_intersection(&b) {
+        match a.intersection(&b) {
             IntersectionResult::None(IntersectionNone::NonParallelNonIntersecting) => (),
             other => panic!("{:?}", other),
         }
@@ -187,7 +187,7 @@ mod test {
     fn colinear_non_overlapping() {
         let a = LineSegment::new(vec2(0., 0.), vec2(1., 1.));
         let b = LineSegment::new(vec2(1.1, 1.1), vec2(2., 2.));
-        match a.asymetric_intersection(&b) {
+        match a.intersection(&b) {
             IntersectionResult::None(IntersectionNone::ColinearNonOverlapping) => (),
             other => panic!("{:?}", other),
         }
@@ -197,7 +197,7 @@ mod test {
     fn end_colinear_overlapping() {
         let a = LineSegment::new(vec2(0., 0.), vec2(1., 1.));
         let b = LineSegment::new(vec2(1., 1.), vec2(2., 2.));
-        match a.asymetric_intersection(&b) {
+        match a.intersection(&b) {
             IntersectionResult::Slide(IntersectionSlide::Colinear) => (),
             other => panic!("{:?}", other),
         }
@@ -207,7 +207,7 @@ mod test {
     fn start_colinear_overlapping() {
         let a = LineSegment::new(vec2(1., 1.), vec2(2., 2.));
         let b = LineSegment::new(vec2(0., 0.), vec2(1., 1.));
-        match a.asymetric_intersection(&b) {
+        match a.intersection(&b) {
             IntersectionResult::Slide(IntersectionSlide::Colinear) => (),
             other => panic!("{:?}", other),
         }
@@ -217,7 +217,7 @@ mod test {
     fn mid_colinear_overlapping() {
         let a = LineSegment::new(vec2(0., 0.), vec2(4., 4.));
         let b = LineSegment::new(vec2(1., 1.), vec2(3., 3.));
-        match a.asymetric_intersection(&b) {
+        match a.intersection(&b) {
             IntersectionResult::Slide(IntersectionSlide::Colinear) => (),
             other => panic!("{:?}", other),
         }
@@ -227,8 +227,8 @@ mod test {
     fn asymetric_start_vertex_overlapping() {
         let a = LineSegment::new(vec2(0., 0.), vec2(4., 0.));
         let b = LineSegment::new(vec2(0., 1.), vec2(0., -1.));
-        expect_multiplier(a.asymetric_intersection(&b), 0.);
-        match b.asymetric_intersection(&a) {
+        expect_multiplier(a.intersection(&b), 0.);
+        match b.intersection(&a) {
             IntersectionResult::Slide(IntersectionSlide::Vertex) => (),
             other => panic!("{:?}", other),
         }
@@ -238,8 +238,8 @@ mod test {
     fn asymetric_end_vertex_overlapping() {
         let a = LineSegment::new(vec2(4., 0.), vec2(0., 0.));
         let b = LineSegment::new(vec2(0., 1.), vec2(0., -1.));
-        expect_multiplier(a.asymetric_intersection(&b), 1.);
-        match b.asymetric_intersection(&a) {
+        expect_multiplier(a.intersection(&b), 1.);
+        match b.intersection(&a) {
             IntersectionResult::Slide(IntersectionSlide::Vertex) => (),
             other => panic!("{:?}", other),
         }
