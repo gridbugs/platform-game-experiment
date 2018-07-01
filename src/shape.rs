@@ -3,6 +3,33 @@ use best::BestMap;
 use cgmath::{vec2, Vector2};
 use line_segment::{IntersectionOrSlide, LineSegment};
 
+fn for_each_single_direction_intersection<A, B, F>(
+    shape: &A,
+    position: Vector2<f32>,
+    other_shape: &B,
+    other_position: Vector2<f32>,
+    movement: Vector2<f32>,
+    reverse_movement: Vector2<f32>,
+    f: &mut F,
+) where
+    A: Collide,
+    B: Collide,
+    F: FnMut(IntersectionOrSlide, LineSegment),
+{
+    shape.for_each_vertex_facing(movement, |rel_vertex| {
+        let abs_vertex = rel_vertex + position;
+        let vertex_movement = LineSegment::new(abs_vertex, abs_vertex + movement);
+        other_shape.for_each_edge_facing(reverse_movement, |rel_edge| {
+            let abs_edge = rel_edge.add_vector(other_position);
+            let intersection = vertex_movement.intersection(&abs_edge);
+            match intersection {
+                Ok(intersection_or_slide) => f(intersection_or_slide, abs_edge),
+                Err(_) => (),
+            }
+        });
+    });
+}
+
 pub trait Collide {
     fn aabb(&self, top_left: Vector2<f32>) -> Aabb;
     fn for_each_edge_facing<F: FnMut(LineSegment)>(&self, direction: Vector2<f32>, f: F);
@@ -11,34 +38,37 @@ pub trait Collide {
         direction: Vector2<f32>,
         f: F,
     );
-    fn single_direction_collision_test<OtherShape: Collide>(
+    fn for_each_movement_intersection<StationaryShape, F>(
         &self,
         position: Vector2<f32>,
-        other_shape: &OtherShape,
-        other_position: Vector2<f32>,
+        stationary_shape: &StationaryShape,
+        stationary_position: Vector2<f32>,
         movement: Vector2<f32>,
-        reverse_movement: Vector2<f32>,
-        best_collision: &mut BestMap<f32, LineSegment>,
-    ) {
-        self.for_each_vertex_facing(movement, |rel_vertex| {
-            let abs_vertex = rel_vertex + position;
-            let vertex_movement = LineSegment::new(abs_vertex, abs_vertex + movement);
-            other_shape.for_each_edge_facing(reverse_movement, |rel_edge| {
-                let abs_edge = rel_edge.add_vector(other_position);
-                let intersection = vertex_movement.intersection(&abs_edge);
-                match intersection {
-                    Ok(intersection_or_slide) => match intersection_or_slide {
-                        IntersectionOrSlide::IntersectionWithVectorMultiplier(
-                            current_scale,
-                        ) => {
-                            best_collision.insert_le(current_scale, abs_edge);
-                        }
-                        IntersectionOrSlide::Slide(_slide) => (),
-                    },
-                    Err(_) => (),
-                }
-            });
-        });
+        mut f: F,
+    ) where
+        Self: Sized,
+        StationaryShape: Collide,
+        F: FnMut(IntersectionOrSlide, LineSegment),
+    {
+        let reverse_movement = -movement;
+        for_each_single_direction_intersection(
+            self,
+            position,
+            stationary_shape,
+            stationary_position,
+            movement,
+            reverse_movement,
+            &mut f,
+        );
+        for_each_single_direction_intersection(
+            stationary_shape,
+            stationary_position,
+            self,
+            position,
+            reverse_movement,
+            movement,
+            &mut f,
+        );
     }
     fn movement_collision_test<StationaryShape>(
         &self,
@@ -52,22 +82,17 @@ pub trait Collide {
         StationaryShape: Collide,
     {
         let mut best_collision = BestMap::new();
-        let reverse_movement = -movement;
-        self.single_direction_collision_test(
+        self.for_each_movement_intersection(
             position,
             stationary_shape,
             stationary_position,
             movement,
-            reverse_movement,
-            &mut best_collision,
-        );
-        stationary_shape.single_direction_collision_test(
-            stationary_position,
-            self,
-            position,
-            reverse_movement,
-            movement,
-            &mut best_collision,
+            |intersection_or_slide, abs_edge| match intersection_or_slide {
+                IntersectionOrSlide::IntersectionWithVectorMultiplier(current_scale) => {
+                    best_collision.insert_le(current_scale, abs_edge);
+                }
+                IntersectionOrSlide::Slide(_slide) => (),
+            },
         );
         if let Some((movement_vector_ratio, colliding_with)) =
             best_collision.into_key_and_value()
