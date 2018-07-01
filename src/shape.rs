@@ -1,7 +1,7 @@
 use aabb::Aabb;
 use best::BestMap;
 use cgmath::{vec2, Vector2};
-use line_segment::LineSegment;
+use line_segment::{IntersectionOrSlide, LineSegment};
 
 pub trait Collide {
     fn aabb(&self, top_left: Vector2<f32>) -> Aabb;
@@ -26,9 +26,16 @@ pub trait Collide {
             other_shape.for_each_edge_facing(reverse_movement, |rel_edge| {
                 let abs_edge = rel_edge.add_vector(other_position);
                 let intersection = vertex_movement.intersection(&abs_edge);
-                if let Some(current_scale) = intersection.intersection_vector_multiplier()
-                {
-                    best_collision.insert_le(current_scale, abs_edge);
+                match intersection {
+                    Ok(intersection_or_slide) => match intersection_or_slide {
+                        IntersectionOrSlide::IntersectionWithVectorMultiplier(
+                            current_scale,
+                        ) => {
+                            best_collision.insert_le(current_scale, abs_edge);
+                        }
+                        IntersectionOrSlide::Slide(_slide) => (),
+                    },
+                    Err(_) => (),
                 }
             });
         });
@@ -62,12 +69,16 @@ pub trait Collide {
             movement,
             &mut best_collision,
         );
-        best_collision.into_key_and_value().map(
-            |(movement_vector_ratio, colliding_with)| CollisionInfo {
+        if let Some((movement_vector_ratio, colliding_with)) =
+            best_collision.into_key_and_value()
+        {
+            Some(CollisionInfo {
                 movement_vector_ratio,
                 colliding_with,
-            },
-        )
+            })
+        } else {
+            None
+        }
     }
 }
 
@@ -154,6 +165,9 @@ impl AxisAlignedRect {
         self.dimensions
     }
 }
+
+const EPSILON: f32 = 0.001;
+
 impl Collide for AxisAlignedRect {
     fn aabb(&self, top_left: Vector2<f32>) -> Aabb {
         Aabb::new(top_left, self.dimensions)
@@ -162,28 +176,23 @@ impl Collide for AxisAlignedRect {
     where
         F: FnMut(Vector2<f32>),
     {
-        if direction.y > 0. {
+        if direction.y > -EPSILON {
             f(self.bottom_left());
             f(self.bottom_right());
-            if direction.x > 0. {
+            if direction.x > -EPSILON {
                 f(self.top_right());
-            } else if direction.x < 0. {
+            }
+            if direction.x < EPSILON {
                 f(self.top_left());
             }
-        } else if direction.y < 0. {
+        }
+        if direction.y < EPSILON {
             f(self.top_left());
             f(self.top_right());
-            if direction.x > 0. {
+            if direction.x > -EPSILON {
                 f(self.bottom_right());
-            } else if direction.x < 0. {
-                f(self.bottom_left());
             }
-        } else {
-            if direction.x > 0. {
-                f(self.top_right());
-                f(self.bottom_right());
-            } else if direction.x < 0. {
-                f(self.top_left());
+            if direction.x < EPSILON {
                 f(self.bottom_left());
             }
         }
@@ -192,14 +201,16 @@ impl Collide for AxisAlignedRect {
     where
         F: FnMut(LineSegment),
     {
-        if direction.y > 0. {
+        if direction.y > -EPSILON {
             f(self.bottom())
-        } else if direction.y < 0. {
+        }
+        if direction.y < EPSILON {
             f(self.top())
         }
-        if direction.x > 0. {
+        if direction.x > -EPSILON {
             f(self.right())
-        } else if direction.x < 0. {
+        }
+        if direction.x < EPSILON {
             f(self.left())
         }
     }

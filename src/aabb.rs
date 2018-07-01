@@ -49,10 +49,10 @@ impl Aabb {
         self.size
     }
     pub fn is_intersecting(&self, other: &Aabb) -> bool {
-        self.top_left.x + self.size.x > other.top_left.x
-            && other.top_left.x + other.size.x > self.top_left.x
-            && self.top_left.y + self.size.y > other.top_left.y
-            && other.top_left.y + other.size.y > self.top_left.y
+        self.top_left.x + self.size.x >= other.top_left.x
+            && other.top_left.x + other.size.x >= self.top_left.x
+            && self.top_left.y + self.size.y >= other.top_left.y
+            && other.top_left.y + other.size.y >= self.top_left.y
     }
     pub fn centre(&self) -> Vector2<f32> {
         self.top_left + self.size / 2.0

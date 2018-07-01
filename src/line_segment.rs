@@ -22,20 +22,12 @@ pub enum IntersectionNone {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum IntersectionResult {
-    IntersectionVectorMultiplier(f32),
+pub enum IntersectionOrSlide {
+    IntersectionWithVectorMultiplier(f32),
     Slide(IntersectionSlide),
-    None(IntersectionNone),
 }
 
-impl IntersectionResult {
-    pub fn intersection_vector_multiplier(&self) -> Option<f32> {
-        match self {
-            &IntersectionResult::IntersectionVectorMultiplier(m) => Some(m),
-            _ => None,
-        }
-    }
-}
+pub type IntersectionResult = Result<IntersectionOrSlide, IntersectionNone>;
 
 fn vector2_cross_product(v: Vector2<f32>, w: Vector2<f32>) -> f32 {
     v.x * w.y - v.y * w.x
@@ -78,38 +70,40 @@ impl LineSegment {
                 // the range t0..t1 will overlap with 0..r_len2 iff the lines overlap
                 if t0 < t1 {
                     if t0 <= r_len2 && t1 >= 0. {
-                        return IntersectionResult::Slide(IntersectionSlide::Colinear);
+                        return Ok(IntersectionOrSlide::Slide(
+                            IntersectionSlide::Colinear,
+                        ));
                     } else {
-                        return IntersectionResult::None(
-                            IntersectionNone::ColinearNonOverlapping,
-                        );
+                        return Err(IntersectionNone::ColinearNonOverlapping);
                     }
                 } else {
                     if t1 <= r_len2 && t0 >= 0. {
-                        return IntersectionResult::Slide(IntersectionSlide::Colinear);
+                        return Ok(IntersectionOrSlide::Slide(
+                            IntersectionSlide::Colinear,
+                        ));
                     } else {
-                        return IntersectionResult::None(
-                            IntersectionNone::ColinearNonOverlapping,
-                        );
+                        return Err(IntersectionNone::ColinearNonOverlapping);
                     }
                 }
             } else {
                 // lines are not colinear, so they don't intersect
-                return IntersectionResult::None(IntersectionNone::ParallelNonColinear);
+                return Err(IntersectionNone::ParallelNonColinear);
             }
         }
         let t = vector2_cross_product(p_to_q, s) / rxs;
         if t < -EPSILON || t > 1. + EPSILON {
-            return IntersectionResult::None(IntersectionNone::NonParallelNonIntersecting);
+            return Err(IntersectionNone::NonParallelNonIntersecting);
         }
         let u = vector2_cross_product(p_to_q, r) / rxs;
         if u.abs() < EPSILON || (u - 1.).abs() < EPSILON {
-            return IntersectionResult::Slide(IntersectionSlide::Vertex);
+            return Ok(IntersectionOrSlide::Slide(IntersectionSlide::Vertex));
         }
         if u < -EPSILON || u > 1. + EPSILON {
-            return IntersectionResult::None(IntersectionNone::NonParallelNonIntersecting);
+            return Err(IntersectionNone::NonParallelNonIntersecting);
         }
-        IntersectionResult::IntersectionVectorMultiplier(t)
+        Ok(IntersectionOrSlide::IntersectionWithVectorMultiplier(
+            t,
+        ))
     }
 }
 

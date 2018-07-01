@@ -127,18 +127,18 @@ fn entity_movement_step(
     static_aabb_quad_tree.for_each_intersection(
         &movement_aabb,
         |_solid_aabb, (solid_position, solid_shape)| {
-            let collision_info = shape.movement_collision_test(
+            let collision_result = shape.movement_collision_test(
                 top_left,
                 solid_shape,
                 *solid_position,
                 movement,
             );
-            if let Some(CollisionInfo {
-                movement_vector_ratio,
-                colliding_with,
-            }) = collision_info
-            {
-                collision.insert_lt(movement_vector_ratio, colliding_with);
+            match collision_result {
+                Some(CollisionInfo {
+                    movement_vector_ratio,
+                    colliding_with,
+                }) => collision.insert_lt(movement_vector_ratio, colliding_with),
+                None => (),
             }
         },
     );
@@ -161,6 +161,9 @@ fn top_left_after_movement(
     const EPSILON: f32 = 0.0001;
     const MAX_ITERATIONS: usize = 16;
     let mut top_left = common.top_left;
+    if movement.dot(movement) < EPSILON {
+        return top_left;
+    }
     let shape = &common.shape;
     for _ in 0..MAX_ITERATIONS {
         match entity_movement_step(top_left, shape, movement, static_aabb_quad_tree) {
