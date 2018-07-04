@@ -27,6 +27,17 @@ pub enum IntersectionOrSlide {
     Slide(IntersectionSlide),
 }
 
+impl IntersectionOrSlide {
+    pub fn intersection_vector_multiplier(&self) -> Option<f32> {
+        match self {
+            &IntersectionOrSlide::IntersectionWithVectorMultiplier(multiplier) => {
+                Some(multiplier)
+            }
+            _ => None,
+        }
+    }
+}
+
 pub type IntersectionResult = Result<IntersectionOrSlide, IntersectionNone>;
 
 fn vector2_cross_product(v: Vector2<f32>, w: Vector2<f32>) -> f32 {
@@ -142,7 +153,7 @@ mod test {
     use cgmath::vec2;
 
     fn expect_multiplier(intersection: IntersectionResult, multiplier: f32) {
-        match intersection.intersection_vector_multiplier() {
+        match intersection.unwrap().intersection_vector_multiplier() {
             None => panic!("{:?}", intersection),
             Some(m) => {
                 assert_eq!((m * 10.).round(), multiplier * 10.);
@@ -161,8 +172,8 @@ mod test {
     fn parallel_non_intersecting() {
         let a = LineSegment::new(vec2(0., 0.), vec2(1., 1.));
         let b = LineSegment::new(vec2(1., 0.), vec2(2., 1.));
-        match a.intersection(&b) {
-            IntersectionResult::None(IntersectionNone::ParallelNonColinear) => (),
+        match a.intersection(&b).unwrap_err() {
+            IntersectionNone::ParallelNonColinear => (),
             other => panic!("{:?}", other),
         }
     }
@@ -171,8 +182,8 @@ mod test {
     fn non_parallel_non_intersecting() {
         let a = LineSegment::new(vec2(0., 0.), vec2(1., 1.));
         let b = LineSegment::new(vec2(2., 0.), vec2(2., 1.));
-        match a.intersection(&b) {
-            IntersectionResult::None(IntersectionNone::NonParallelNonIntersecting) => (),
+        match a.intersection(&b).unwrap_err() {
+            IntersectionNone::NonParallelNonIntersecting => (),
             other => panic!("{:?}", other),
         }
     }
@@ -181,8 +192,8 @@ mod test {
     fn colinear_non_overlapping() {
         let a = LineSegment::new(vec2(0., 0.), vec2(1., 1.));
         let b = LineSegment::new(vec2(1.1, 1.1), vec2(2., 2.));
-        match a.intersection(&b) {
-            IntersectionResult::None(IntersectionNone::ColinearNonOverlapping) => (),
+        match a.intersection(&b).unwrap_err() {
+            IntersectionNone::ColinearNonOverlapping => (),
             other => panic!("{:?}", other),
         }
     }
@@ -191,8 +202,8 @@ mod test {
     fn end_colinear_overlapping() {
         let a = LineSegment::new(vec2(0., 0.), vec2(1., 1.));
         let b = LineSegment::new(vec2(1., 1.), vec2(2., 2.));
-        match a.intersection(&b) {
-            IntersectionResult::Slide(IntersectionSlide::Colinear) => (),
+        match a.intersection(&b).unwrap() {
+            IntersectionOrSlide::Slide(IntersectionSlide::Colinear) => (),
             other => panic!("{:?}", other),
         }
     }
@@ -201,8 +212,8 @@ mod test {
     fn start_colinear_overlapping() {
         let a = LineSegment::new(vec2(1., 1.), vec2(2., 2.));
         let b = LineSegment::new(vec2(0., 0.), vec2(1., 1.));
-        match a.intersection(&b) {
-            IntersectionResult::Slide(IntersectionSlide::Colinear) => (),
+        match a.intersection(&b).unwrap() {
+            IntersectionOrSlide::Slide(IntersectionSlide::Colinear) => (),
             other => panic!("{:?}", other),
         }
     }
@@ -211,8 +222,8 @@ mod test {
     fn mid_colinear_overlapping() {
         let a = LineSegment::new(vec2(0., 0.), vec2(4., 4.));
         let b = LineSegment::new(vec2(1., 1.), vec2(3., 3.));
-        match a.intersection(&b) {
-            IntersectionResult::Slide(IntersectionSlide::Colinear) => (),
+        match a.intersection(&b).unwrap() {
+            IntersectionOrSlide::Slide(IntersectionSlide::Colinear) => (),
             other => panic!("{:?}", other),
         }
     }
@@ -222,8 +233,8 @@ mod test {
         let a = LineSegment::new(vec2(0., 0.), vec2(4., 0.));
         let b = LineSegment::new(vec2(0., 1.), vec2(0., -1.));
         expect_multiplier(a.intersection(&b), 0.);
-        match b.intersection(&a) {
-            IntersectionResult::Slide(IntersectionSlide::Vertex) => (),
+        match b.intersection(&a).unwrap() {
+            IntersectionOrSlide::Slide(IntersectionSlide::Vertex) => (),
             other => panic!("{:?}", other),
         }
     }
@@ -233,8 +244,19 @@ mod test {
         let a = LineSegment::new(vec2(4., 0.), vec2(0., 0.));
         let b = LineSegment::new(vec2(0., 1.), vec2(0., -1.));
         expect_multiplier(a.intersection(&b), 1.);
-        match b.intersection(&a) {
-            IntersectionResult::Slide(IntersectionSlide::Vertex) => (),
+        match b.intersection(&a).unwrap() {
+            IntersectionOrSlide::Slide(IntersectionSlide::Vertex) => (),
+            other => panic!("{:?}", other),
+        }
+    }
+
+    #[test]
+    fn nearby_lines_intersect() {
+        const DIFF: f32 = EPSILON * EPSILON;
+        let a = LineSegment::new(vec2(10., 10. - DIFF), vec2(20., 10. - DIFF));
+        let b = LineSegment::new(vec2(10., 10. + DIFF), vec2(20., 10. + DIFF));
+        match a.intersection(&b).unwrap() {
+            IntersectionOrSlide::Slide(IntersectionSlide::Colinear) => (),
             other => panic!("{:?}", other),
         }
     }
