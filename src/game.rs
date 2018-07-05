@@ -59,6 +59,7 @@ impl InputModel {
 
 pub type EntityId = u32;
 
+#[derive(Clone)]
 pub struct EntityCommon {
     pub top_left: Vector2<f32>,
     pub shape: Shape,
@@ -274,6 +275,18 @@ impl GameState {
     }
     pub fn update(&mut self, input_model: &InputModel) {
         let player_id = self.player_id.expect("No player id");
+        if let Some(player_common) = self.common.get(&player_id).cloned() {
+            let common = &mut self.common;
+
+            self.static_aabb_quad_tree.for_each_intersection(
+                &player_common.aabb(),
+                |_solid_aabb, info| {
+                    if let Some(common) = common.get_mut(&info.entity_id) {
+                        common.colour = [0., 1., 1.];
+                    }
+                },
+            );
+        }
         if let Some(velocity) = self.velocity.get_mut(&player_id) {
             *velocity = update_player_velocity(*velocity, input_model);
         }
