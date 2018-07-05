@@ -94,12 +94,31 @@ impl EntityIdAllocator {
     }
 }
 
+#[derive(Debug)]
+struct SpatialInfo {
+    entity_id: EntityId,
+    position: Vector2<f32>,
+    shape: Shape,
+}
+
+impl SpatialInfo {
+    fn new(entity_id: EntityId, position: Vector2<f32>, shape: Shape) -> Self {
+        SpatialInfo {
+            entity_id,
+            position,
+            shape,
+        }
+    }
+}
+
+type SpatialLooseQuadTree = LooseQuadTree<SpatialInfo>;
+
 pub struct GameState {
     player_id: Option<EntityId>,
     entity_id_allocator: EntityIdAllocator,
     common: FnvHashMap<EntityId, EntityCommon>,
     velocity: FnvHashMap<EntityId, Vector2<f32>>,
-    static_aabb_quad_tree: LooseQuadTree<(Vector2<f32>, Shape)>,
+    static_aabb_quad_tree: SpatialLooseQuadTree,
 }
 
 fn update_player_velocity(
@@ -119,29 +138,22 @@ fn entity_movement_step(
     top_left: Vector2<f32>,
     shape: &Shape,
     movement: Vector2<f32>,
-    static_aabb_quad_tree: &LooseQuadTree<(Vector2<f32>, Shape)>,
+    static_aabb_quad_tree: &SpatialLooseQuadTree,
 ) -> EntityMovementStep {
     let new_top_left = top_left + movement;
     let movement_aabb = shape.aabb(top_left).union(&shape.aabb(new_top_left));
     let mut collision = BestMap::new();
-    static_aabb_quad_tree.for_each_intersection(
-        &movement_aabb,
-        |_solid_aabb, (solid_position, solid_shape)| {
-            let collision_result = shape.movement_collision_test(
-                top_left,
-                solid_shape,
-                *solid_position,
-                movement,
-            );
-            match collision_result {
-                Some(CollisionInfo {
-                    movement_vector_ratio,
-                    colliding_with,
-                }) => collision.insert_lt(movement_vector_ratio, colliding_with),
-                None => (),
-            }
-        },
-    );
+    static_aabb_quad_tree.for_each_intersection(&movement_aabb, |_solid_aabb, info| {
+        let collision_result =
+            shape.movement_collision_test(top_left, &info.shape, info.position, movement);
+        match collision_result {
+            Some(CollisionInfo {
+                movement_vector_ratio,
+                colliding_with,
+            }) => collision.insert_lt(movement_vector_ratio, colliding_with),
+            None => (),
+        }
+    });
     match collision.into_key_and_value() {
         None => EntityMovementStep::MoveWithoutCollision,
         Some((movement_vector_ratio, colliding_with)) => {
@@ -156,7 +168,7 @@ fn entity_movement_step(
 fn top_left_after_movement(
     common: &EntityCommon,
     mut movement: Vector2<f32>,
-    static_aabb_quad_tree: &LooseQuadTree<(Vector2<f32>, Shape)>,
+    static_aabb_quad_tree: &SpatialLooseQuadTree,
 ) -> Vector2<f32> {
     const EPSILON: f32 = 0.0001;
     const MAX_ITERATIONS: usize = 16;
@@ -208,8 +220,10 @@ impl GameState {
     }
     fn add_static_solid(&mut self, common: EntityCommon) -> EntityId {
         let id = self.entity_id_allocator.allocate();
-        self.static_aabb_quad_tree
-            .insert(common.aabb(), (common.top_left, common.shape.clone()));
+        self.static_aabb_quad_tree.insert(
+            common.aabb(),
+            SpatialInfo::new(id, common.top_left, common.shape.clone()),
+        );
         self.common.insert(id, common);
         id
     }
