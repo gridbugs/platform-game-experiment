@@ -191,6 +191,8 @@ impl AxisAlignedRect {
     }
 }
 
+const EPSILON: f32 = 0.001;
+
 impl Collide for AxisAlignedRect {
     fn aabb(&self, top_left: Vector2<f32>) -> Aabb {
         Aabb::new(top_left, self.dimensions)
@@ -199,28 +201,23 @@ impl Collide for AxisAlignedRect {
     where
         F: FnMut(Vector2<f32>),
     {
-        if direction.y > 0. {
+        if direction.y > -EPSILON {
             f(self.bottom_left());
             f(self.bottom_right());
-            if direction.x > 0. {
+            if direction.x > -EPSILON {
                 f(self.top_right());
-            } else if direction.x < 0. {
+            }
+            if direction.x < EPSILON {
                 f(self.top_left());
             }
-        } else if direction.y < 0. {
+        }
+        if direction.y < EPSILON {
             f(self.top_left());
             f(self.top_right());
-            if direction.x > 0. {
+            if direction.x > -EPSILON {
                 f(self.bottom_right());
-            } else if direction.x < 0. {
-                f(self.bottom_left());
             }
-        } else {
-            if direction.x > 0. {
-                f(self.top_right());
-                f(self.bottom_right());
-            } else if direction.x < 0. {
-                f(self.top_left());
+            if direction.x < EPSILON {
                 f(self.bottom_left());
             }
         }
@@ -229,14 +226,16 @@ impl Collide for AxisAlignedRect {
     where
         F: FnMut(LineSegment),
     {
-        if direction.y > 0. {
+        if direction.y > -EPSILON {
             f(self.bottom())
-        } else if direction.y < 0. {
+        }
+        if direction.y < EPSILON {
             f(self.top())
         }
-        if direction.x > 0. {
+        if direction.x > -EPSILON {
             f(self.right())
-        } else if direction.x < 0. {
+        }
+        if direction.x < EPSILON {
             f(self.left())
         }
     }
