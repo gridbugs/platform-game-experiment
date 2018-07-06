@@ -27,17 +27,6 @@ pub enum IntersectionOrSlide {
     Slide(IntersectionSlide),
 }
 
-impl IntersectionOrSlide {
-    pub fn intersection_vector_multiplier(&self) -> Option<f32> {
-        match self {
-            &IntersectionOrSlide::IntersectionWithVectorMultiplier(multiplier) => {
-                Some(multiplier)
-            }
-            _ => None,
-        }
-    }
-}
-
 pub type IntersectionResult = Result<IntersectionOrSlide, IntersectionNone>;
 
 fn vector2_cross_product(v: Vector2<f32>, w: Vector2<f32>) -> f32 {
@@ -151,6 +140,17 @@ impl Collide for LineSegment {
 mod test {
     use super::*;
     use cgmath::vec2;
+
+    impl IntersectionOrSlide {
+        pub fn intersection_vector_multiplier(&self) -> Option<f32> {
+            match self {
+                &IntersectionOrSlide::IntersectionWithVectorMultiplier(multiplier) => {
+                    Some(multiplier)
+                }
+                _ => None,
+            }
+        }
+    }
 
     fn expect_multiplier(intersection: IntersectionResult, multiplier: f32) {
         match intersection.unwrap().intersection_vector_multiplier() {
