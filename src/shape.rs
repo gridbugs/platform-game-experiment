@@ -14,7 +14,7 @@ fn for_each_single_direction_intersection<A, B, F>(
 ) where
     A: Collide,
     B: Collide,
-    F: FnMut(IntersectionOrSlide, LineSegment),
+    F: FnMut(IntersectionOrSlide, LineSegment<f32>),
 {
     shape.for_each_vertex_facing(movement, |rel_vertex| {
         let abs_vertex = rel_vertex + position;
@@ -32,7 +32,11 @@ fn for_each_single_direction_intersection<A, B, F>(
 
 pub trait Collide {
     fn aabb(&self, top_left: Vector2<f32>) -> Aabb;
-    fn for_each_edge_facing<F: FnMut(LineSegment)>(&self, direction: Vector2<f32>, f: F);
+    fn for_each_edge_facing<F: FnMut(LineSegment<f32>)>(
+        &self,
+        direction: Vector2<f32>,
+        f: F,
+    );
     fn for_each_vertex_facing<F: FnMut(Vector2<f32>)>(
         &self,
         direction: Vector2<f32>,
@@ -48,7 +52,7 @@ pub trait Collide {
     ) where
         Self: Sized,
         StationaryShape: Collide,
-        F: FnMut(IntersectionOrSlide, LineSegment),
+        F: FnMut(IntersectionOrSlide, LineSegment<f32>),
     {
         let reverse_movement = -movement;
         for_each_single_direction_intersection(
@@ -109,13 +113,13 @@ pub trait Collide {
 
 pub struct CollisionInfo {
     pub movement_vector_ratio: f32,
-    pub colliding_with: LineSegment,
+    pub colliding_with: LineSegment<f32>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Shape {
     AxisAlignedRect(AxisAlignedRect),
-    LineSegment(LineSegment),
+    LineSegment(LineSegment<f32>),
 }
 
 impl Shape {
@@ -174,16 +178,16 @@ impl AxisAlignedRect {
     fn bottom_right(&self) -> Vector2<f32> {
         self.dimensions
     }
-    fn top(&self) -> LineSegment {
+    fn top(&self) -> LineSegment<f32> {
         LineSegment::new(self.top_left(), self.top_right())
     }
-    fn right(&self) -> LineSegment {
+    fn right(&self) -> LineSegment<f32> {
         LineSegment::new(self.top_right(), self.bottom_right())
     }
-    fn bottom(&self) -> LineSegment {
+    fn bottom(&self) -> LineSegment<f32> {
         LineSegment::new(self.bottom_right(), self.bottom_left())
     }
-    fn left(&self) -> LineSegment {
+    fn left(&self) -> LineSegment<f32> {
         LineSegment::new(self.bottom_left(), self.top_left())
     }
     pub fn dimensions(&self) -> Vector2<f32> {
@@ -224,7 +228,7 @@ impl Collide for AxisAlignedRect {
     }
     fn for_each_edge_facing<F>(&self, direction: Vector2<f32>, mut f: F)
     where
-        F: FnMut(LineSegment),
+        F: FnMut(LineSegment<f32>),
     {
         if direction.y > -EPSILON {
             f(self.bottom())

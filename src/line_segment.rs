@@ -1,11 +1,11 @@
 use aabb::Aabb;
-use cgmath::{vec2, InnerSpace, Vector2};
+use cgmath::{vec2, BaseNum, InnerSpace, Vector2};
 use shape::Collide;
 
 #[derive(Debug, Clone, Copy)]
-pub struct LineSegment {
-    pub start: Vector2<f32>,
-    pub end: Vector2<f32>,
+pub struct LineSegment<N> {
+    pub start: Vector2<N>,
+    pub end: Vector2<N>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -35,20 +35,23 @@ fn vector2_cross_product(v: Vector2<f32>, w: Vector2<f32>) -> f32 {
 
 const EPSILON: f32 = 0.001;
 
-impl LineSegment {
-    pub fn new(start: Vector2<f32>, end: Vector2<f32>) -> Self {
+impl<N: BaseNum> LineSegment<N> {
+    pub fn new(start: Vector2<N>, end: Vector2<N>) -> Self {
         Self { start, end }
     }
-    pub fn add_vector(&self, vector: Vector2<f32>) -> Self {
+    pub fn add_vector(&self, vector: Vector2<N>) -> Self {
         Self {
             start: self.start + vector,
             end: self.end + vector,
         }
     }
-    pub fn vector(&self) -> Vector2<f32> {
+    pub fn vector(&self) -> Vector2<N> {
         self.end - self.start
     }
-    pub fn intersection(&self, other: &LineSegment) -> IntersectionResult {
+}
+
+impl LineSegment<f32> {
+    pub fn intersection(&self, other: &LineSegment<f32>) -> IntersectionResult {
         // treat self as  p + tr for t in 0..1
         // treat other as q + us for u in 0..1
         // if we define * on vectors v, w to mean v.x * w.y - v.y * w.x
@@ -101,13 +104,14 @@ impl LineSegment {
         if u < -EPSILON || u > 1. + EPSILON {
             return Err(IntersectionNone::NonParallelNonIntersecting);
         }
+        println!("{:?}", t);
         Ok(IntersectionOrSlide::IntersectionWithVectorMultiplier(
-            t,
+            (t - EPSILON).max(0.),
         ))
     }
 }
 
-impl Collide for LineSegment {
+impl Collide for LineSegment<f32> {
     fn aabb(&self, top_left: Vector2<f32>) -> Aabb {
         let start = self.start + top_left;
         let end = self.end + top_left;
@@ -119,7 +123,7 @@ impl Collide for LineSegment {
         let bottom_right = vec2(x_max, y_max);
         Aabb::new(top_left, bottom_right - top_left)
     }
-    fn for_each_edge_facing<F: FnMut(LineSegment)>(
+    fn for_each_edge_facing<F: FnMut(LineSegment<f32>)>(
         &self,
         _direction: Vector2<f32>,
         mut f: F,
