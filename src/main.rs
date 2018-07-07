@@ -1,14 +1,20 @@
 #![feature(nonzero)]
 extern crate best;
 extern crate cgmath;
+#[macro_use]
+extern crate custom_derive;
 extern crate fnv;
 #[macro_use]
 extern crate gfx;
 extern crate gfx_device_gl;
 extern crate gfx_window_glutin;
 extern crate glutin;
+#[macro_use]
+extern crate newtype_derive;
+extern crate num;
 
 mod aabb;
+mod arith;
 mod game;
 mod glutin_window;
 mod graphics;
