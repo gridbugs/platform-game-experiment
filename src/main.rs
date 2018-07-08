@@ -15,6 +15,7 @@ extern crate num;
 
 mod aabb;
 mod arith;
+mod collision;
 mod game;
 mod glutin_window;
 mod graphics;
